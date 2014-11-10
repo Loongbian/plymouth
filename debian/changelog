@@ -10,8 +10,10 @@ plymouth (0.9.0-9) UNRELEASED; urgency=medium
   * debian/local/plymouth.hook: Properly copy .plymouth file into the
     initramfs for themes that are not shipping images, this should fix the
     tribar theme.
+  * Enable I/O multiplexing functionality of plymouth by default as soon as
+    the main package is installed. (Closes: #768329)
 
- -- Laurent Bigonville <bigon@debian.org>  Mon, 10 Nov 2014 12:48:27 +0100
+ -- Laurent Bigonville <bigon@debian.org>  Mon, 10 Nov 2014 11:38:11 +0100
 
 plymouth (0.9.0-8) unstable; urgency=medium
 
