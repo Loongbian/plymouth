@@ -4,3 +4,5 @@
 0004-return-code.patch
 0005-cmdline.patch
 drop-systemd-vconsole-setup-service.patch
+0010-relative-path-support-in-theme-file
+0011-theme-symlink-support

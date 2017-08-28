@@ -1,0 +1,111 @@
+Index: plymouth/scripts/plymouth-set-default-theme.in
+===================================================================
+--- plymouth.orig/scripts/plymouth-set-default-theme.in	2017-08-28 22:48:10.943785263 +0200
++++ plymouth/scripts/plymouth-set-default-theme.in	2017-08-28 22:48:10.939785148 +0200
+@@ -54,12 +54,18 @@
+         if [ -z "$THEME_NAME" -o ! -r "${PLYMOUTH_DATADIR}/plymouth/themes/$THEME_NAME/$THEME_NAME.plymouth" ]; then
+                 THEME_NAME=$(read_theme_name_from_file ${PLYMOUTH_POLICYDIR}/plymouthd.defaults)
+         fi
+-
+-        if [ -z "$THEME_NAME" -o ! -r "${PLYMOUTH_DATADIR}/plymouth/themes/$THEME_NAME/$THEME_NAME.plymouth" \
++        THEME="${PLYMOUTH_DATADIR}/plymouth/themes/$THEME_NAME/$THEME_NAME.plymouth"
++        # If no plymouth file found matching the default theme name, try using the first file matching *.plymouth.
++        # It is useful if the default theme is a symlink to an existing theme.
++        if [ ! -r "${THEME}" ]; then
++                THEME=$(find ${PLYMOUTH_DATADIR}/plymouth/themes/$THEME_NAME/ -name "*.plymouth" 2> /dev/null | head -1)
++        fi
++        if [ -z "$THEME_NAME" -o ! -r "${THEME}" \
+              -a -L "${PLYMOUTH_DATADIR}/plymouth/themes/default.plymouth" ]; then
+                 THEME_NAME=$(basename "$(readlink ${PLYMOUTH_DATADIR}/plymouth/themes/default.plymouth)" .plymouth)
++                THEME="${PLYMOUTH_DATADIR}/plymouth/themes/$THEME_NAME/$THEME_NAME.plymouth"
+         fi
+-        if [ -z "$THEME_NAME" -o ! -r "${PLYMOUTH_DATADIR}/plymouth/themes/$THEME_NAME/$THEME_NAME.plymouth" ]; then
++        if [ -z "$THEME_NAME" -o ! -r "${THEME}" ]; then
+                 THEME_NAME="text"
+         fi
+ 
+Index: plymouth/src/main.c
+===================================================================
+--- plymouth.orig/src/main.c	2017-08-28 22:48:10.943785263 +0200
++++ plymouth/src/main.c	2017-08-28 23:28:24.398521110 +0200
+@@ -26,6 +26,7 @@
+ #include <math.h>
+ #include <ctype.h>
+ #include <limits.h>
++#include <libgen.h>
+ #include <dirent.h>
+ #include <fcntl.h>
+ #include <stdlib.h>
+@@ -288,6 +289,54 @@
+         }
+ }
+ 
++static int
++filter_key_file_type (const struct dirent* entry)
++{
++        bool is_key_file;
++
++        is_key_file = (strlen (entry->d_name) > 9)
++            && (strcmp (entry->d_name + strlen (entry->d_name) - 9, ".plymouth") == 0);
++
++        return is_key_file;
++}
++
++static bool
++find_settings_file (const char *splash_string,
++                    char      **theme_path)
++{
++        char* theme_dir;
++        int number_of_entries;
++        struct dirent **entries;
++        int i;
++
++        asprintf (theme_path,
++                  PLYMOUTH_THEME_PATH "%s/%s.plymouth",
++                  splash_string, splash_string);
++
++        ply_trace ("Checking if %s exists", *theme_path);
++        if (!ply_file_exists (*theme_path)) {
++                ply_trace ("File %s not found, trying first .plymouth file in dir", *theme_path);
++                asprintf (&theme_dir, "%s", dirname (*theme_path));
++                number_of_entries = scandir (theme_dir, &entries, &filter_key_file_type, alphasort);
++                // Use first .plymouth file in directory
++                if (number_of_entries >= 1) {
++                        free (*theme_path);
++                        asprintf (theme_path, "%s/%s", theme_dir, entries[0]->d_name);
++                }
++                for (i = 0; i < number_of_entries; i++) {
++                        free (entries[i]);
++                        entries[i] = NULL;
++                }
++                free (theme_dir);
++                free (entries);
++                entries = NULL;
++
++                if (number_of_entries <= 0)
++                        return false;
++        }
++        return true;
++}
++
+ static bool
+ load_settings (state_t    *state,
+                const char *path,
+@@ -309,13 +358,10 @@
+         if (splash_string == NULL)
+                 goto out;
+ 
+-        asprintf (theme_path,
+-                  PLYMOUTH_RUNTIME_THEME_PATH "%s/%s.plymouth",
+-                  splash_string, splash_string);
+-        ply_trace ("Checking if %s exists", *theme_path);
+-        if (!ply_file_exists (*theme_path)) {
+-                ply_trace ("%s not found, fallbacking to " PLYMOUTH_THEME_PATH,
+-                           *theme_path);
++        if (find_settings_file (splash_string, theme_path)) {
++                ply_trace ("Using theme file %s", *theme_path);
++        } else {
++                ply_trace ("No .plymouth file found, fallbacking to " PLYMOUTH_THEME_PATH);
+                 asprintf (theme_path,
+                           PLYMOUTH_THEME_PATH "%s/%s.plymouth",
+                           splash_string, splash_string);

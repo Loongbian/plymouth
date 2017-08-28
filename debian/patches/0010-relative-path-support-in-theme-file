@@ -1,0 +1,84 @@
+Index: plymouth/src/libply/ply-key-file.c
+===================================================================
+--- plymouth.orig/src/libply/ply-key-file.c	2017-08-28 21:40:33.432207493 +0200
++++ plymouth/src/libply/ply-key-file.c	2017-08-28 21:39:34.773787388 +0200
+@@ -113,6 +113,13 @@
+         return key_file;
+ }
+ 
++char *
++ply_key_file_get_file_name (ply_key_file_t *key_file)
++{
++        char *filename = strdup(key_file->filename);
++        return filename;
++}
++
+ static void
+ ply_key_file_free_entry_foreach (void *key,
+                                  void *data,
+Index: plymouth/src/libply/ply-key-file.h
+===================================================================
+--- plymouth.orig/src/libply/ply-key-file.h	2017-08-28 21:40:33.452215756 +0200
++++ plymouth/src/libply/ply-key-file.h	2017-08-28 21:39:37.066280540 +0200
+@@ -34,6 +34,7 @@
+ 
+ #ifndef PLY_HIDE_FUNCTION_DECLARATIONS
+ ply_key_file_t *ply_key_file_new (const char *filename);
++char *ply_key_file_get_file_name (ply_key_file_t *key_file);
+ void ply_key_file_free (ply_key_file_t *key_file);
+ bool ply_key_file_load (ply_key_file_t *key_file);
+ bool ply_key_file_has_key (ply_key_file_t *key_file,
+Index: plymouth/src/plugins/splash/script/plugin.c
+===================================================================
+--- plymouth.orig/src/plugins/splash/script/plugin.c	2017-08-28 21:40:24.348390385 +0200
++++ plymouth/src/plugins/splash/script/plugin.c	2017-08-28 21:39:46.919216733 +0200
+@@ -26,6 +26,7 @@
+ #include <assert.h>
+ #include <errno.h>
+ #include <fcntl.h>
++#include <libgen.h>
+ #include <math.h>
+ #include <signal.h>
+ #include <stdbool.h>
+@@ -167,14 +168,41 @@
+ create_plugin (ply_key_file_t *key_file)
+ {
+         ply_boot_splash_plugin_t *plugin;
++        char* theme_file_name;
++        char* theme_dir;
++        char* abs_plugin_dir;
++        char* abs_image_dir;
++
++        theme_file_name =  ply_key_file_get_file_name (key_file);
++        asprintf (&theme_dir, "%s", dirname (theme_file_name));
+ 
+         plugin = calloc (1, sizeof(ply_boot_splash_plugin_t));
+         plugin->image_dir = ply_key_file_get_value (key_file,
+                                                     "script",
+                                                     "ImageDir");
++        if (plugin->image_dir != NULL && plugin->image_dir[0] != '/') {
++                asprintf (&abs_image_dir, "%s/%s", theme_dir, plugin->image_dir);
++                ply_trace ("ImageDir '%s' is relative, appending to theme dir: '%s'",
++                           plugin->image_dir,
++                           abs_image_dir);
++                free (plugin->image_dir);
++                plugin->image_dir = abs_image_dir;
++        }
+         plugin->script_filename = ply_key_file_get_value (key_file,
+                                                           "script",
+                                                           "ScriptFile");
++        if (plugin->script_filename != NULL && plugin->script_filename[0] != '/') {
++                asprintf (&abs_plugin_dir, "%s/%s", theme_dir, plugin->script_filename);
++                ply_trace ("ScriptFile '%s' is relative, appending to theme dir: '%s'",
++                           plugin->script_filename,
++                           abs_plugin_dir);
++                free (plugin->script_filename);
++                plugin->script_filename = abs_plugin_dir;
++        }
++        free (theme_dir);
++        theme_dir = NULL;
++        free (theme_file_name);
++        theme_file_name = NULL;
+ 
+         plugin->script_env_vars = ply_list_new ();
+         ply_key_file_foreach_entry (key_file, add_script_env_var, plugin->script_env_vars);

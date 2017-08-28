@@ -25,8 +25,22 @@ if [ -n "${THEME}" ]
 then
 	THEME_NAME="${THEME}"
 	THEME="${THEMES}/${THEME}/${THEME}.plymouth"
+	# Look for any .plymouth file in case the active theme is a symlink to an existing theme.
+	if [ ! -r "${THEME}" ]; then
+		THEME=$(find ${THEMES}/${THEME_NAME}/ -name "*.plymouth" 2> /dev/null | head -1)
+	fi
+	if [ ! -r "${THEME}" ]; then
+		echo "W: failed to find .plymouth file for theme '${THEME_NAME}', skipping plymouth."
+		exit 0
+	fi
 else
 	exit 0
+fi
+
+DISTRIB_CONF="/usr/share/plymouth/plymouthd.defaults"
+DISTRIB_THEME_NAME=$(sed -n 's/^Theme=\(.*\)/\1/p' ${DISTRIB_CONF})
+if [ -n "${DISTRIB_THEME_NAME}" ]; then
+	DISTRIB_THEME=$(find ${THEMES}/${DISTRIB_THEME_NAME}/ -name "*.plymouth" 2> /dev/null | head -1)
 fi
 
 PLUGIN_PATH="$(plymouth --get-splash-plugin-path)"
@@ -52,7 +66,14 @@ fi
 # copy plugin and images for current theme
 copy_exec "${MODULE}"
 mkdir -p "${DESTDIR}/${THEMES}"
-cp -r "${THEMES}/${THEME_NAME}" "${DESTDIR}/${THEMES}"
+cp -rL "${THEMES}/${THEME_NAME}" "${DESTDIR}/${THEMES}"
+
+# Always copy .plymouth file for distribution default theme if available
+# to avoid plymouth failing to show early when a system theme is selected
+if [ -n "${DISTRIB_THEME}" ]; then
+	mkdir -p "${DESTDIR}/${THEMES}/${DISTRIB_THEME_NAME}"
+	cp "${DISTRIB_THEME}" "${DESTDIR}/${THEMES}/${DISTRIB_THEME_NAME}/${DISTRIB_THEME_NAME}.plymouth"
+fi
 
 # copy binaries and base plugins
 copy_exec /bin/plymouth
