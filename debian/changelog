@@ -1,3 +1,9 @@
+plymouth (0.9.4-1.1+loongbian) unstable; urgency=medium
+
+  * [Loongbian] Set default theme to loongbian
+
+ -- Boyue Zhang <boyue.zhang@pzhang.net>  Fri, 17 Jul 2020 15:36:20 +0800
+
 plymouth (0.9.4-1.1) unstable; urgency=medium
 
   [ Andreas Henriksson ]
